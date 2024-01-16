@@ -109,6 +109,24 @@ class Stack:
             self._stack.delete_at_end()
             return value
 
+class Queue:
+    queue = DoublyLinkedList()
+
+    def enqueue(self, value):
+        self.queue.insert_at_front(value)
+
+    def dequeue(self):
+        if self.queue.length != 0:
+            x = self.queue.get(self.queue.length-1)
+            self.queue.delete_at_end()
+            return x
+
+    def size(self):
+        return self.queue.length
+
+    def clear(self):
+        self.queue.clear()
+
 class TreeNode:
     def __init__(self, key, value):
         self.key = key
@@ -158,6 +176,11 @@ class TreeDictionary:
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
+        self.health = 5
+        self.counter = 0  # To control unwanted inputs
+        self.counter_start = False
+        self.heart = pygame.image.load("files/graphics/player/heart.png").convert_alpha()
+        self.heart = pygame.transform.scale(self.heart, (25,25))
         self.player_off = pygame.image.load("files/graphics/player/playeroff.png").convert_alpha()
         self.player_off = pygame.transform.scale(self.player_off,(96,102))
         self.player_on = pygame.image.load("files/graphics/player/playeron.png").convert_alpha()
@@ -166,12 +189,16 @@ class Player(pygame.sprite.Sprite):
         self.player_index = 0
         self.image = self.player_images[self.player_index].convert_alpha()
         self.rect = self.image.get_rect(midbottom=(width/2,0.95*height))
-
-        self.bullet = pygame.image.load("files/graphics/player/bullet.png").convert_alpha()
+        self.machinegun = pygame.image.load("files/graphics/player/machinegun.png").convert_alpha()
         self.shotgun = pygame.image.load("files/graphics/player/shotgun.png").convert_alpha()
         self.laser = pygame.image.load("files/graphics/player/laser.png").convert_alpha()
+        self.guns = Queue()
+        self.guns.enqueue({"name": "shotgun", "ammo": 8, "image": self.shotgun})
+        self.guns.enqueue({"name": "laser", "ammo": 5, "image": self.laser})
+        self.current_gun = {"name": "machinegun", "ammo": 50, "image": self.machinegun}
 
     def player_input(self):
+        # Moving
         keys = pygame.key.get_pressed()
         if keys[pygame.K_d] and self.rect.right < width:
             self.rect.right += 8
@@ -183,6 +210,38 @@ class Player(pygame.sprite.Sprite):
             if self.rect.left < 0:
                 self.rect.left = 0
             print("m_left")
+        # Change Ammo & Shoot
+        if self.counter == 0:
+            if keys[pygame.K_c]:
+                self.guns.enqueue(self.current_gun)
+                self.current_gun = self.guns.dequeue()
+                self.counter_start = True
+            # check for shoot here
+            if keys[pygame.K_SPACE]:
+                self.shoot()
+                self.counter_start = True
+        if self.counter_start:
+            self.counter += 1
+            if self.counter >= 10:
+                self.counter = 0
+                self.counter_start = False
+
+    # implement shoot function in here
+    def shoot(self):
+        if self.current_gun["ammo"] > 0:
+            self.current_gun["ammo"] = self.current_gun["ammo"] - 1
+            info = {"health": self.health, "gun": self.current_gun, "player_rect": self.rect.__copy__()}
+            if info["gun"]["name"] == "shotgun":
+                info["player_rect"].left -= 40
+                for i in range(-2,3):
+                    info = info.copy() # To avoid passing by reference
+                    info["orientation"] = i
+                    bullets.add(Bullet(info))
+                    info["player_rect"].left += 20
+            else:
+                bullets.add(Bullet(info))
+        else:
+            print("Out of Ammo!")
 
     def animation_state(self):
         self.player_index += 0.3
@@ -190,9 +249,66 @@ class Player(pygame.sprite.Sprite):
             self.player_index = 0
         self.image = self.player_images[int(self.player_index)]
 
+    def hud(self):
+        gun = pygame.transform.scale(self.current_gun["image"],(25,50))
+        font = pygame.font.Font("files/font/Pixeltype.ttf",50)
+        ammonum = font.render(str(self.current_gun["ammo"]),False,"White")
+        screen.blit(gun,(width*0.96,height*0.88))
+        screen.blit(ammonum,(width*0.92,height*0.91))
+        for i in range(self.health):
+            screen.blit(self.heart,(width*0.9+i*20,height*0.95))
+
     def update(self):
-        self.animation_state()
         self.player_input()
+        self.animation_state()
+        self.hud()
+
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, player_info):
+        super().__init__()
+        self.player_info = player_info
+        self.image = player_info["gun"]["image"]
+        self.image = pygame.transform.scale(self.image,(20,50))
+        self.rect = self.image.get_rect(midbottom=self.player_info["player_rect"].midtop)
+        if self.player_info["gun"]["name"] == "laser":
+            self.damage = 5
+        else:
+            self.damage = 1
+
+    def movement_n_collision(self):
+        # Implement Collision here
+        if self.rect.bottom < -5 or self.damage == 0:
+            self.kill()
+        if self.player_info["gun"]["name"] == "laser":
+            self.rect.bottom -= 15
+        else:
+            self.rect.bottom -= 10
+        if self.player_info["gun"]["name"] == "shotgun":
+            self.rect.left += self.player_info["orientation"]
+
+    def update(self):
+        self.movement_n_collision()
+
+class Asteroid(pygame.sprite.Sprite):
+    def __init__(self,pos):
+        super().__init__()
+        if current_state == "level1":
+            self.level = 1
+            self.image = pygame.image.load("files/graphics/asteroids/asteroid1.png").convert_alpha()
+            self.image = pygame.transform.scale(self.image,(65,65))
+            self.rect = self.image.get_rect(midbottom=pos)
+            self.hp = 1
+            self.speed = 1
+
+    def update(self):
+        if self.hp == 0 or self.rect.top > height+5:
+            self.kill()
+        # Check for collisions with Player or bullets here
+        self.rect.bottom += self.speed
+        if pygame.sprite.spritecollide(self, bullets, False) or pygame.sprite.spritecollide(self, player, False):
+            self.hp -= 1
+
+
 
 def load_game_states():
     states = Stack()
@@ -203,7 +319,7 @@ def load_game_states():
     return states
 
 def load_menu():
-    menu_backrground = pygame.image.load("files/graphics/backgrounds/menu.jpg").convert_alpha()
+    menu_backrground = pygame.image.load("files/graphics/backgrounds/menu.png").convert_alpha()
     menu_backrground = pygame.transform.scale(menu_backrground, (width, height))
     story_background = pygame.image.load("files/graphics/backgrounds/story.jpg").convert_alpha()
     story_background = pygame.transform.scale(story_background, (width,height))
@@ -240,7 +356,6 @@ def load_menu():
 def load_levels():
     lvl_background = pygame.image.load("files/graphics/backgrounds/levelBackground.jpg").convert_alpha()
     lvl_background = pygame.transform.scale(lvl_background,(width,height))
-
     level_dict = TreeDictionary()
     level_dict.insert("lvl_background",lvl_background)
 
@@ -263,10 +378,12 @@ lvl_dict = load_levels()
 game_states = load_game_states()
 current_state = "menu"
 
-
 # Loading Sprite Groups
 player = pygame.sprite.GroupSingle()
+bullets = pygame.sprite.Group()
+asteroids = pygame.sprite.Group()
 player.add(Player())
+
 
 
 while True:
@@ -311,6 +428,11 @@ while True:
         screen.blit(lvl_dict.search("lvl_background"),(0,0))
         player.draw(screen)
         player.update()
+        bullets.draw(screen)
+        bullets.update()
+        asteroids.draw(screen)
+        asteroids.update()
+
 
     pygame.display.update()
     clock.tick(60)
