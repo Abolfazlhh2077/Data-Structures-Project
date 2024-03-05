@@ -1,0 +1,9 @@
+You and your team of astronauts were orbiting around J1407b, you decided to send a probe team into it's massive ring system
+and soon you found out one of their proppeling modules is damaged and now they are stranded among the asteroids.
+So you decide to start a dangerous journey into a massive ring system full of asteroids to save your friends...
+
+
+
+PRESS    "A"    OR    "D"    TO  MOVE  SIDE  WAYS
+PRESS    "SPACE"    TO  SHOOT
+PRESS    "C"    TO  CHANGE  WEAPON
